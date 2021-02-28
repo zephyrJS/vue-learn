@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reactive</title>
+</head>
+<body>
+    
+</body>
+<script>
+    const reactive = (obj) => {
+        return new Proxy(obj, {
+            get(target, key) {
+                const res = Reflect.get(target, key)
+                console.log('get', target, key)
+                track(target, key)
+                return res
+            },
+            set(target, key, value) {
+                const ret = Reflect.set(target, key, value)
+                console.log('set', target, key, value)
+                trigger(target, key, value)
+                return ret
+            },
+            deleteProperty(target, key) {
+                const ret = Reflect.deleteProperty(target, key)
+                console.log('deleteProperty', target, key)
+                trigger(target, key, value)
+                return ret
+            }
+        })
+    }
+
+
+    const effectStack = []
+    let activeEffect
+    // 建立依赖中心
+    // new WeakMap(target, new Map(key, deps))
+    const targetMap = new WeakMap()
+    const track = (target, key) => {
+        let depMap = targetMap.get(target)
+        if(!depMap) {
+            depMap = new Map()
+            targetMap.set(target, depMap)
+        }
+        
+        let deps = depMap.get(key)
+        if(!deps) {
+            deps = new Set()
+            depMap.set(key, deps)
+        }
+
+        if(activeEffect) {
+            deps.add(activeEffect)
+        }
+    }
+    const trigger = (target, key, value) => {
+        const depMap = targetMap.get(target)
+        if(!depMap) return
+
+        const deps = depMap.get(key)
+        if(!deps || deps.size <= 0) return
+
+        deps.forEach(effect => effect())   
+    }
+
+    const createReactiveEffect = (fn) => {
+        const effect = () => {
+            try {
+                effectStack.push(effect)
+                activeEffect = effect
+                return fn()
+            } finally {
+                effectStack.pop()
+                activeEffect = effectStack[effectStack.length - 1]
+            }
+        }
+
+        return effect
+    }
+    const effect = (fn) => {
+        const effect = createReactiveEffect(fn)
+        effect()
+
+        return effect
+    }
+
+    const obj = reactive({
+        a: 1
+    })
+
+    effect(() => {
+        console.log('effect',obj.a)
+    })
+
+    obj.a = 2
+    
+
+    
+
+
+</script>
+</html>
